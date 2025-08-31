@@ -1,5 +1,5 @@
 # chat_room
-<h2>Description<h2>
+<h2>Description</h2>
 <p> This is a simple soft real time TCP based chat room application written in c++
 <ul>
 <li>The server can handle multiple clients simultaneously using threads.</li>
