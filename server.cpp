@@ -7,11 +7,14 @@
 #include <unistd.h>
 #include <assert.h>
 #include <thread> //thread for multiple clients to get connected at a time
+#include <mutex>
 
 using namespace std;
 
 // for error
-
+vector<int> clients;
+mutex gLock;
+static int fd;
 void die(string msg)
 {
     int err = errno;
@@ -58,57 +61,88 @@ static int write_all(int fd, const char *msg, u_int32_t n)
 
 static u_int32_t k_max_len = 4096; // for the max length fothe message
 
-static int one_request(int connfd)
-{
-    char rbuff[4 + k_max_len];
-    errno = 0;
-    int err = read_full(connfd, rbuff, 4);
-    if (err != 0)
-        return -1;
-    u_int32_t len;
-    memcpy(&len, rbuff, 4);
-    if (len > k_max_len)
-    {
-        msg("too long ");
-        return -1;
-    }
-    err = read_full(connfd, rbuff + 4, len);
-    if (err)
-    {
-        msg("read() error ");
-        return -1;
-    }
+// broadcast message
 
-    // printing msg stored
-
-    string message(rbuff + 4, len);
-    cout << "Client says " << message << endl;
-
-    // writing something
-
-    const string ack = "recieved";
-    len = (u_int32_t)ack.length();
-    char w_buff[4 + len];
+void broadcast(const char *message, int sender_id = -1)
+{ // default value of sender_id =-1
+    lock_guard<mutex> lg(gLock);
+    u_int32_t len = strlen(message);
+    char w_buff[8 + len];
     memcpy(w_buff, &len, 4);
-    memcpy(w_buff + 4, ack.data(), len);
-    return write_all(connfd, w_buff, len + 4);
+    memcpy(w_buff + 4, &sender_id, 4);
+    memcpy(w_buff + 8, message, len);
+    for (int client_id : clients)
+    {
+        if (client_id != sender_id)
+        {
+
+            int err = write_all(client_id, w_buff, len + 8);
+        }
+    }
 }
 
+// client_handler- Display ans broadcast the message
 void client_handler(int conn_fd)
 {
     while (true)
     {
-        int err = one_request(conn_fd);
-        if (err)
-            break;
+        char r_buff[4 + k_max_len];
+        int err = read_full(conn_fd, r_buff, 4);
+        if (err != 0)
+        {
+            msg("read error()");
+            return;
+        }
+        u_int32_t len;
+        memcpy(&len, r_buff, 4);
+        err = read_full(conn_fd, r_buff + 4, len);
+        if (err != 0)
+        {
+            msg("read error()");
+            return;
+        }
+        string mess(r_buff + 4, len);
+        if (mess == "Quit" || mess == "quit")
+        {
+            lock_guard<mutex> lg(gLock);
+            for (auto itr = clients.begin(); itr != clients.end(); itr++)
+            {
+                if (*itr == conn_fd)
+                {
+                    clients.erase(itr);
+                    mess = "Client " + std::to_string(conn_fd) + " exited";
+                    break;
+                }
+            }
+        }
+        broadcast(mess.c_str(), conn_fd);
+        cout << "[Client " << conn_fd << "] says- " << mess << endl;
     }
-    close(conn_fd);
+}
+
+// server handler- for input and broadcast message by server
+
+void server_handler()
+{
+    string server_msg;
+    while (getline(cin, server_msg))
+    {
+        if (server_msg == "Quit" || server_msg == "quit")
+        {
+            cout << "Server Shutting down " << endl;
+            broadcast("Server shutting down", -1);
+            close(fd);
+            exit(0);
+            return;
+        }
+        broadcast(server_msg.c_str(), -1);
+    }
 }
 
 int main()
 {
     // Obtain socket handle
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0)
         die("socket()");
 
@@ -131,6 +165,7 @@ int main()
     rv = listen(fd, SOMAXCONN); // SOMAXCONN-> user defind constant (for maximum reasonable length of pending connections in queue)
     if (rv)
         die("listen()");
+    thread(server_handler).detach();
 
     // accept connections
 
@@ -141,7 +176,15 @@ int main()
         int conn_fd = accept(fd, (struct sockaddr *)&client_addr, &addlen);
         if (conn_fd < 0)
             continue;
+        {
+            lock_guard<mutex> lg(gLock);
+            clients.push_back(conn_fd);
+        }
+
         thread(client_handler, conn_fd).detach();
+        string j_msg = "Client " + to_string(conn_fd) + " joined chat";
+        cout << j_msg << endl;
+        broadcast(j_msg.c_str(), conn_fd);
     }
     close(fd);
     return 0;
