@@ -6,6 +6,8 @@
 #include <cstring>  //for strerror
 #include <unistd.h> // for write
 #include <assert.h> //for assert
+#include <thread>   //thead used for broadcasting
+#include <mutex>
 
 using namespace std;
 
@@ -13,6 +15,7 @@ static void msg(string str)
 {
     cerr << str << endl;
 }
+
 void die(string msg)
 {
     int err = errno;
@@ -58,40 +61,88 @@ static int write_all(int fd, char *w_buff, u_int32_t n)
 
 const u_int32_t k_max_size = 4096;
 
-static int query(int fd, const char *text)
+static int recieve_handler(int fd)
 {
-    u_int32_t len = (u_int32_t)strlen(text);
-    if (len > k_max_size)
-        return -1;
-    char w_buff[4 + len];
-    memcpy(w_buff, &len, 4);
-    memcpy(w_buff + 4, text, len);
-    int err = write_all(fd, w_buff, len + 4);
-    if (err)
-        return err;
-
-    char rbuff[4 + k_max_size];
-    errno = 0;
-    err = read_full(fd, rbuff, 4);
-    if (err != 0)
+    bool running = true;
+    while (running)
     {
-        msg("read() error ");
-        return -1;
+
+        char r_buff[8 + k_max_size];
+        errno = 0;
+        int err;
+        err = read_full(fd, r_buff, 4);
+        if (err != 0)
+        {
+            msg("Server disconnected");
+            running = false;
+            return -1;
+        }
+        u_int32_t len;
+        memcpy(&len, r_buff, 4);
+        if (len > k_max_size)
+        {
+            msg("Too long message");
+            running = false;
+        }
+        err = read_full(fd, r_buff + 4, 4);
+        u_int32_t client_no;
+        memcpy(&client_no, r_buff + 4, 4);
+        err = read_full(fd, r_buff + 8, len);
+        string message(r_buff + 8, len);
+        if (client_no > 4096)
+            cout << "[Server] " << message << endl;
+        else
+            cout << "[Client " << client_no << "] " << message << endl;
     }
 
-    memcpy(&len, rbuff, 4);
-    if (len > k_max_size)
-        msg("too long ");
-    err = read_full(fd, rbuff + 4, len);
-    if (err)
-        msg("read() error ");
-
-    // printing msg stored
-
-    string message(rbuff + 4, len);
-    cout << "Server says " << message << endl;
     return 0;
 }
+
+static int send_handler(int fd)
+{
+    string message;
+    cout << "Type the message " << endl;
+    bool running = true;
+    while (running)
+    {
+
+        getline(cin, message);
+        char w_buff[4 + message.length()];
+        if (message == "Quit" || message == "quit")
+        {
+            running = false;
+            u_int32_t len = (u_int32_t)message.length();
+            memcpy(w_buff, &len, 4);
+            memcpy(w_buff + 4, message.c_str(), len);
+            int err = write_all(fd, w_buff, len + 4);
+            if (err != 0)
+            {
+                msg("Server disconnected()");
+                running = false;
+                return -1;
+            }
+            break;
+        }
+        if (message.size() > k_max_size)
+        {
+            running = false;
+            msg("message too long() ");
+            continue;
+        }
+        u_int32_t len = (u_int32_t)message.length();
+        memcpy(w_buff, &len, 4);
+        memcpy(w_buff + 4, message.c_str(), len);
+        int err = write_all(fd, w_buff, len + 4);
+        if (err != 0)
+        {
+            msg("Server disconnected()");
+            running = false;
+            return -1;
+        }
+    }
+    return 0;
+}
+
 int main()
 {
     // Obtaining socket handler
@@ -113,20 +164,12 @@ int main()
         die("connect() ");
 
     // Read and Write multiple requests for test
-    string message;
-    cout << "Enter the message";
-    std::getline(cin, message);
-    while (message != "Quit" && message != "quit")
-    {
-        int err = query(fd, message.c_str());
-        if (err)
-        {
-            close(fd);
-            return 0;
-        }
-        cout << "Enter the message";
-        std::getline(cin, message);
-    }
+    cout << "Connected to chat room" << endl;
+    cout << "Type Quit or quit to exit" << endl;
+    thread r_thread(&recieve_handler, fd);
+    thread s_thread(&send_handler, fd);
+    r_thread.join();
+    s_thread.join();
     close(fd);
     return 0;
 }
