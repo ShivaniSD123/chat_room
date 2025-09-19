@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <thread> //thread for multiple clients to get connected at a time
 #include <mutex>
+#include "authenticate.h"
 
 using namespace std;
 
@@ -33,7 +34,7 @@ static int read_full(int fd, char *rbuff, u_int32_t n)
 {
     while (n > 0)
     {
-        int rv = read(fd, rbuff, n);
+        ssize_t rv = read(fd, rbuff, n);
         if (rv <= 0)
         {
             return -1; // error
@@ -49,11 +50,11 @@ static int write_all(int fd, const char *msg, u_int32_t n)
 {
     while (n > 0)
     {
-        u_int32_t rv = write(fd, msg, n);
+        ssize_t rv = write(fd, msg, n);
         if (rv <= 0)
             return -1; // error
-        assert(rv <= n);
-        n -= rv;
+        assert((u_int32_t)rv <= n);
+        n -= (u_int32_t)rv;
         msg += rv;
     }
     return 0;
@@ -102,6 +103,7 @@ void client_handler(int conn_fd)
             return;
         }
         string mess(r_buff + 4, len);
+        string temp = mess;
         if (mess == "Quit" || mess == "quit")
         {
             lock_guard<mutex> lg(gLock);
@@ -117,6 +119,11 @@ void client_handler(int conn_fd)
         }
         broadcast(mess.c_str(), conn_fd);
         cout << "[Client " << conn_fd << "] says- " << mess << endl;
+        if (temp == "Quit" || temp == "quit")
+        {
+            close(conn_fd);
+            return;
+        }
     }
 }
 
@@ -139,6 +146,40 @@ void server_handler()
     }
 }
 
+// authenticate fn
+
+bool chk(int conn_fd)
+{
+    char r_buff[4 + k_max_len];
+    int err = read_full(conn_fd, r_buff, 4);
+    if (err != 0)
+    {
+        msg("read error()");
+        return 0;
+    }
+    u_int32_t name_len;
+    memcpy(&name_len, r_buff, 4);
+    err = read_full(conn_fd, r_buff + 4, name_len);
+    string name(r_buff + 4, name_len);
+    char choice = name[0];
+    string username = name.substr(1, name_len - 1);
+    u_int32_t pass_len;
+    err = read_full(conn_fd, r_buff + 4 + name_len, 4);
+    memcpy(&pass_len, r_buff + 4 + name_len, 4);
+    err = read_full(conn_fd, r_buff + 8 + name_len, pass_len);
+    string pass(r_buff + 8 + name_len, pass_len);
+    cout << choice << " Username " << username << "  password- " << pass << endl;
+    bool is_valid = 0;
+    if (choice == '0')
+        is_valid = reg(username, pass);
+    else
+        is_valid = login(username, pass);
+    char w_buff[4];
+    int i = is_valid;
+    memcpy(w_buff, &i, 4);
+    err = write_all(conn_fd, w_buff, 4);
+    return is_valid;
+}
 int main()
 {
     // Obtain socket handle
@@ -176,15 +217,22 @@ int main()
         int conn_fd = accept(fd, (struct sockaddr *)&client_addr, &addlen);
         if (conn_fd < 0)
             continue;
+        if (chk(conn_fd))
         {
-            lock_guard<mutex> lg(gLock);
-            clients.push_back(conn_fd);
-        }
+            {
+                lock_guard<mutex> lg(gLock);
+                clients.push_back(conn_fd);
+            }
 
-        thread(client_handler, conn_fd).detach();
-        string j_msg = "Client " + to_string(conn_fd) + " joined chat";
-        cout << j_msg << endl;
-        broadcast(j_msg.c_str(), conn_fd);
+            thread(client_handler, conn_fd).detach();
+            string j_msg = "Client " + to_string(conn_fd) + " joined chat";
+            cout << j_msg << endl;
+            broadcast(j_msg.c_str(), conn_fd);
+        }
+        else
+        {
+            close(conn_fd);
+        }
     }
     close(fd);
     return 0;

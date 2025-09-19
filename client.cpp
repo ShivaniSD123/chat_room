@@ -27,38 +27,31 @@ static int read_full(int fd, char *rbuff, u_int32_t n)
 {
     while (n > 0)
     {
-        u_int32_t rv = read(fd, rbuff, n);
-        if (rv == 0)
+        ssize_t rv = read(fd, rbuff, n);
+        if (rv <= 0)
         {
-            // msg("EOF");
-            return -1;
+            return -1; // error
         }
-        else if (rv < 0)
-        {
-            msg("read() error ");
-            return -1;
-        }
-        assert(rv <= n);
-        n -= rv;
+        assert(u_int32_t(rv) <= n);
+        n -= (u_int32_t)rv;
         rbuff += rv;
     }
     return 0;
 }
 
-static int write_all(int fd, char *w_buff, u_int32_t n)
+static int write_all(int fd, const char *msg, u_int32_t n)
 {
     while (n > 0)
     {
-        int rv = write(fd, w_buff, n);
+        ssize_t rv = write(fd, msg, n);
         if (rv <= 0)
-            return -1;
-        assert(rv <= n);
-        n -= rv;
-        w_buff += rv;
+            return -1; // error
+        assert((u_int32_t)rv <= n);
+        n -= (u_int32_t)rv;
+        msg += rv;
     }
     return 0;
 }
-
 const u_int32_t k_max_size = 4096;
 
 static int recieve_handler(int fd)
@@ -140,7 +133,46 @@ static int send_handler(int fd)
             return -1;
         }
     }
+    close(fd);
     return 0;
+}
+
+// register and login
+
+bool chk(int fd)
+{
+    string name;
+    string pass;
+    string option;
+    cout << "\t\tWelcome to Chat-Box" << endl;
+    cout << "===================================================" << endl
+         << endl;
+    cout << "Choose 0 to Register and 1 to Login, others to exit" << endl;
+    getline(cin, option);
+    if (option != "0" && option != "1")
+        return 0;
+    cout << "Enter the Username ";
+    getline(cin, name);
+    cout << "Enter the Password ";
+    getline(cin, pass);
+    name = option + name;
+    u_int32_t name_len = name.size();
+    u_int32_t pass_len = pass.size();
+    char w_buff[8 + name_len + pass_len];
+    memcpy(w_buff, &name_len, 4);
+    memcpy(w_buff + 4, name.c_str(), name_len);
+    memcpy(w_buff + 4 + name_len, &pass_len, 4);
+    memcpy(w_buff + 8 + name_len, pass.c_str(), pass_len);
+    int err = write_all(fd, w_buff, 8 + name_len + pass_len);
+    char r_buff[4];
+    err = read_full(fd, r_buff, 4);
+    u_int32_t reply;
+    memcpy(&reply, r_buff, 4);
+    if (reply == 0)
+        cout << "Rejected" << endl;
+    else
+        cout << "Authenticated" << endl;
+    return bool(reply);
 }
 
 int main()
@@ -162,14 +194,21 @@ int main()
     int rv = connect(fd, (const sockaddr *)&addr, sizeof(addr));
     if (rv)
         die("connect() ");
+    if (chk(fd))
+    {
 
-    // Read and Write multiple requests for test
-    cout << "Connected to chat room" << endl;
-    cout << "Type Quit or quit to exit" << endl;
-    thread r_thread(&recieve_handler, fd);
-    thread s_thread(&send_handler, fd);
-    r_thread.join();
-    s_thread.join();
+        // Read and Write multiple requests for test
+        cout << "Connected to chat room" << endl;
+        cout << "Type Quit or quit to exit" << endl;
+        thread r_thread(&recieve_handler, fd);
+        thread s_thread(&send_handler, fd);
+        r_thread.join();
+        s_thread.join();
+    }
+    else
+    {
+        cout << "Wrong Information" << endl;
+    }
     close(fd);
     return 0;
 }

@@ -1,0 +1,38 @@
+cmake_minimum_required(VERSION 3.15)
+project(MySQLAuthDemo LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(PkgConfig)
+
+if (PkgConfig_FOUND)
+    pkg_check_modules(MYSQLCLIENT mysqlclient)
+endif()
+
+if (MYSQLCLIENT_FOUND)
+    message(STATUS "Found MySQL client via pkg-config")
+    set(MYSQLCLIENT_INCLUDE_DIRS ${MYSQLCLIENT_INCLUDE_DIRS})
+    set(MYSQLCLIENT_LIBRARY_DIRS ${MYSQLCLIENT_LIBRARY_DIRS})
+    set(MYSQLCLIENT_LIBRARIES ${MYSQLCLIENT_LIBRARIES})
+else()
+    if (APPLE)
+        set(MYSQLCLIENT_INCLUDE_DIRS /usr/local/mysql/include)
+        set(MYSQLCLIENT_LIBRARY_DIRS /usr/local/mysql/lib)
+    elseif (UNIX)
+        set(MYSQLCLIENT_INCLUDE_DIRS /usr/include/mysql)
+        set(MYSQLCLIENT_LIBRARY_DIRS /usr/lib/x86_64-linux-gnu)
+    endif()
+    set(MYSQLCLIENT_LIBRARIES mysqlclient)
+endif()
+
+add_executable(server server.cpp)
+
+target_include_directories(server PRIVATE ${MYSQLCLIENT_INCLUDE_DIRS})
+target_link_directories(server PRIVATE ${MYSQLCLIENT_LIBRARY_DIRS})
+target_link_libraries(server ${MYSQLCLIENT_LIBRARIES})
+
+set_target_properties(server PROPERTIES
+    BUILD_RPATH "${MYSQLCLIENT_LIBRARY_DIRS}"
+    INSTALL_RPATH "${MYSQLCLIENT_LIBRARY_DIRS}"
+)
