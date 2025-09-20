@@ -1,15 +1,7 @@
 # chat_room
 <h2>Description</h2>
-<p> This is a simple unix based soft real time TCP based chat room application written in c++
-<ul>
-<li>The server can handle multiple clients simultaneously using threads.</li>
+<p> A multi-threaded chatroom application implemented in C++, with user authentication (register/login) backed by a relational database (MySQL).
 
-<li>Messages from one client are broadcast to all other connected clients.</li>
-
-<li>The server can also send messages to all clients.</li>
-
-<li>Both clients and server can exit gracefully with the command quit or Quit.</li>
-</ul>
 </p>
 
 <h2>Features</h2>
@@ -18,28 +10,58 @@
 <li>Client-Server Architecture- Central server manages all the clients</li>
 <li>Multi-user Chat: Multiple clients can connect and chat simultaneously</li>
 <li>Console-based messaging for both server and client</li>
+<li>User Authentication- Register an new user and login the existing user.</li>
+<li>Both clients and server can exit gracefully with the command quit or Quit.</li>
+<li>Message Broadcasting- Messages sent with username tags, not client IDs.</li>
+<li>Concurrency: Each client runs on a dedicated thread.</li>
 </ul>
 </p>
 <p>
 <h2>Requirements</h2>
 <ul>
 <li>C++11 or later</li>
+<li>MySQL Database for authentication</li>
+
+<li>CMake for build system</li>
 
 <li>Linux/Unix environment (uses <sys/socket.h>, <netinet/in.h>, etc.)</li>
 
 <li>Basic build tools (g++)</li>
 </ul>
 </p>
+
+<p>
+<h2> Installations and Stepus</h2>
+<h4>Configure Database</h4>
+<p>Create a MySQL database named chatroom. And add users table for authentication:</p>
+<p>
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL
+);
+</p>
+<li>Update DB credentials in authenticate.h (or config file) (eg. user and password in authenticate.h).</li>
+<h4>NOTE: THE DATABSE AND THE SERVER SHOULD BE ON SAME MACHINE</h4>
+<h4>Build the project</h4>
+<p>cmake.
+make</p>
+<h4> Running the Server</h4>
+<p>./server</p>
+<h4>Running the client</h4>
+<p>./client</p>
 <p>
 <h2>Future Improvements</h2>
 <ul>
 <li>
-Support for usernames instead of socket IDs.</li>
+Replace per-thread model with event-driven I/O. </li>
 
-<li>Private messaging between clients.</li>
+<li>Add encryption for secure communication.</li>
 
-<li>GUI front-end (Qt, ncurses, or web sockets).</li>
+<li>Store and retrieve chat history from the database</li>.
 
-<li>Better client ID management (instead of raw socket numbers).</li>
+<li>Add private messaging (/msg user).</li>
+
+<li>Improve error handling and reconnection support.</li>
 </ul>
 </p>
