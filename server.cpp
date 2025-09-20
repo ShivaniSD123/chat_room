@@ -16,6 +16,7 @@ using namespace std;
 vector<int> clients;
 mutex gLock;
 static int fd;
+string username;
 void die(string msg)
 {
     int err = errno;
@@ -68,16 +69,16 @@ void broadcast(const char *message, int sender_id = -1)
 { // default value of sender_id =-1
     lock_guard<mutex> lg(gLock);
     u_int32_t len = strlen(message);
-    char w_buff[8 + len];
+    char w_buff[4 + len];
     memcpy(w_buff, &len, 4);
-    memcpy(w_buff + 4, &sender_id, 4);
-    memcpy(w_buff + 8, message, len);
+    memcpy(w_buff + 4, message, len);
     for (int client_id : clients)
     {
         if (client_id != sender_id)
         {
 
-            int err = write_all(client_id, w_buff, len + 8);
+            int err = write_all(client_id, w_buff, len + 4);
+            // cout << "broadcasted to " << client_id << endl;
         }
     }
 }
@@ -87,22 +88,27 @@ void client_handler(int conn_fd)
 {
     while (true)
     {
-        char r_buff[4 + k_max_len];
+        char r_buff[8 + k_max_len];
         int err = read_full(conn_fd, r_buff, 4);
         if (err != 0)
         {
             msg("read error()");
             return;
         }
-        u_int32_t len;
-        memcpy(&len, r_buff, 4);
-        err = read_full(conn_fd, r_buff + 4, len);
+        u_int32_t user_len;
+        memcpy(&user_len, r_buff, 4);
+        err = read_full(conn_fd, r_buff + 4, user_len);
         if (err != 0)
         {
             msg("read error()");
             return;
         }
-        string mess(r_buff + 4, len);
+        string user_name(r_buff + 4, user_len);
+        err = read_full(conn_fd, r_buff + 4 + user_len, 4);
+        u_int32_t mess_len;
+        memcpy(&mess_len, r_buff + 4 + user_len, 4);
+        err = read_full(conn_fd, r_buff + 8 + user_len, mess_len);
+        string mess(r_buff + 8 + user_len, mess_len);
         string temp = mess;
         if (mess == "Quit" || mess == "quit")
         {
@@ -112,13 +118,17 @@ void client_handler(int conn_fd)
                 if (*itr == conn_fd)
                 {
                     clients.erase(itr);
-                    mess = "Client " + std::to_string(conn_fd) + " exited";
+                    mess = "Client " + user_name + " exited";
                     break;
                 }
             }
         }
+        else
+        {
+            mess = "[" + user_name + "]: " + temp;
+        }
         broadcast(mess.c_str(), conn_fd);
-        cout << "[Client " << conn_fd << "] says- " << mess << endl;
+        cout << mess << endl;
         if (temp == "Quit" || temp == "quit")
         {
             close(conn_fd);
@@ -142,6 +152,7 @@ void server_handler()
             exit(0);
             return;
         }
+        server_msg = "[Server]: " + server_msg;
         broadcast(server_msg.c_str(), -1);
     }
 }
@@ -162,13 +173,13 @@ bool chk(int conn_fd)
     err = read_full(conn_fd, r_buff + 4, name_len);
     string name(r_buff + 4, name_len);
     char choice = name[0];
-    string username = name.substr(1, name_len - 1);
+    username = name.substr(1, name_len - 1);
     u_int32_t pass_len;
     err = read_full(conn_fd, r_buff + 4 + name_len, 4);
     memcpy(&pass_len, r_buff + 4 + name_len, 4);
     err = read_full(conn_fd, r_buff + 8 + name_len, pass_len);
     string pass(r_buff + 8 + name_len, pass_len);
-    cout << choice << " Username " << username << "  password- " << pass << endl;
+    // cout << choice << " Username " << username << "  password- " << pass << endl;
     bool is_valid = 0;
     if (choice == '0')
         is_valid = reg(username, pass);
@@ -225,7 +236,7 @@ int main()
             }
 
             thread(client_handler, conn_fd).detach();
-            string j_msg = "Client " + to_string(conn_fd) + " joined chat";
+            string j_msg = "Client " + username + " joined chat";
             cout << j_msg << endl;
             broadcast(j_msg.c_str(), conn_fd);
         }

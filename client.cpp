@@ -11,6 +11,7 @@
 
 using namespace std;
 
+string name;
 static void msg(string str)
 {
     cerr << str << endl;
@@ -59,8 +60,7 @@ static int recieve_handler(int fd)
     bool running = true;
     while (running)
     {
-
-        char r_buff[8 + k_max_size];
+        char r_buff[4 + k_max_size];
         errno = 0;
         int err;
         err = read_full(fd, r_buff, 4);
@@ -77,15 +77,9 @@ static int recieve_handler(int fd)
             msg("Too long message");
             running = false;
         }
-        err = read_full(fd, r_buff + 4, 4);
-        u_int32_t client_no;
-        memcpy(&client_no, r_buff + 4, 4);
-        err = read_full(fd, r_buff + 8, len);
-        string message(r_buff + 8, len);
-        if (client_no > 4096)
-            cout << "[Server] " << message << endl;
-        else
-            cout << "[Client " << client_no << "] " << message << endl;
+        err = read_full(fd, r_buff + 4, len);
+        string message(r_buff + 4, len);
+        cout << message << endl;
     }
 
     return 0;
@@ -100,38 +94,28 @@ static int send_handler(int fd)
     {
 
         getline(cin, message);
-        char w_buff[4 + message.length()];
-        if (message == "Quit" || message == "quit")
-        {
-            running = false;
-            u_int32_t len = (u_int32_t)message.length();
-            memcpy(w_buff, &len, 4);
-            memcpy(w_buff + 4, message.c_str(), len);
-            int err = write_all(fd, w_buff, len + 4);
-            if (err != 0)
-            {
-                msg("Server disconnected()");
-                running = false;
-                return -1;
-            }
-            break;
-        }
+        char w_buff[8 + message.length() + name.length()];
         if (message.size() > k_max_size)
         {
             running = false;
             msg("message too long() ");
             continue;
         }
+        u_int32_t name_len = name.length();
         u_int32_t len = (u_int32_t)message.length();
-        memcpy(w_buff, &len, 4);
-        memcpy(w_buff + 4, message.c_str(), len);
-        int err = write_all(fd, w_buff, len + 4);
+        memcpy(w_buff, &name_len, 4);
+        memcpy(w_buff + 4, name.c_str(), name_len);
+        memcpy(w_buff + 4 + name_len, &len, 4);
+        memcpy(w_buff + 8 + name_len, message.c_str(), len);
+        int err = write_all(fd, w_buff, len + 8 + name_len);
         if (err != 0)
         {
             msg("Server disconnected()");
             running = false;
             return -1;
         }
+        if (message == "Quit" || message == "quit")
+            running = false;
     }
     close(fd);
     return 0;
@@ -141,7 +125,7 @@ static int send_handler(int fd)
 
 bool chk(int fd)
 {
-    string name;
+
     string pass;
     string option;
     cout << "\t\tWelcome to Chat-Box" << endl;
@@ -172,6 +156,7 @@ bool chk(int fd)
         cout << "Rejected" << endl;
     else
         cout << "Authenticated" << endl;
+    name = name.substr(1, name_len - 1);
     return bool(reply);
 }
 
