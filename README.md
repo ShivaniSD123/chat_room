@@ -35,17 +35,17 @@
 <h4>Configure Database</h4>
 <p>Create a MySQL database named chatroom. And add users table for authentication:</p>
 <p>
-CREATE TABLE users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL
-);
+CREATE TABLE users (<br>
+    id INT AUTO_INCREMENT PRIMARY KEY,<br>
+    username VARCHAR(50) UNIQUE NOT NULL,<br>
+    password VARCHAR(255) NOT NULL<br>
+);<br>
 </p>
 <li>Update DB credentials in authenticate.h (or config file) (eg. user and password in authenticate.h).</li>
 <h4>NOTE: THE DATABSE AND THE SERVER SHOULD BE ON SAME MACHINE</h4>
 <h4>Build the project</h4>
-<p>cmake.
-make</p>
+<p>cmake.<br>
+make<br></p>
 <h4> Running the Server</h4>
 <p>./server</p>
 <h4>Running the client</h4>
