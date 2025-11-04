@@ -24,7 +24,7 @@
 
 <li>CMake for build system</li>
 
-<li>Linux/Unix environment (uses <sys/socket.h>, <netinet/in.h>, etc.)</li>
+<li>Linux/Unix environment (uses sys/socket.h, netinet/in.h>, etc.)</li>
 
 <li>Basic build tools (g++)</li>
 </ul>
@@ -58,7 +58,7 @@ Replace per-thread model with event-driven I/O. </li>
 
 <li>Add encryption for secure communication.</li>
 
-<li>Store and retrieve chat history from the database</li>.
+<li>Store and retrieve chat history from the database</li>
 
 <li>Add private messaging (/msg user).</li>
 
