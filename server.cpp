@@ -208,7 +208,7 @@ int main()
 
     struct sockaddr_in addr{};
     addr.sin_family = AF_INET; // for IPv4
-    addr.sin_addr.s_addr = htonl(0);
+    addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(1234);
     int rv = ::bind(fd, (const struct sockaddr *)&addr, sizeof(addr));
 

@@ -8,6 +8,7 @@
 #include <assert.h> //for assert
 #include <thread>   //thead used for broadcasting
 #include <mutex>
+#include <arpa/inet.h>
 
 using namespace std;
 
@@ -171,7 +172,7 @@ int main()
 
     struct sockaddr_in addr = {};
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_addr.s_addr = inet_addr("192.168.0.100");
     addr.sin_port = htons(1234);
 
     // Establishing the Connection
